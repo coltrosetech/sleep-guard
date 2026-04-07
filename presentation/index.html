@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SleepGuard - Tanitim Sunumu</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #08080f; --bg2: #0e0e1a;
+  --surface: #141425; --surface2: #1c1c35; --surface3: #24243d;
+  --accent: #00d4ff; --accent-dim: rgba(0,212,255,0.08); --accent2: #8b5cf6;
+  --green: #10b981; --green-dim: rgba(16,185,129,0.1);
+  --yellow: #f59e0b; --yellow-dim: rgba(245,158,11,0.1);
+  --red: #ef4444; --red-dim: rgba(239,68,68,0.1);
+  --purple: #8b5cf6; --purple-dim: rgba(139,92,246,0.1);
+  --text: #f1f5f9; --text2: #a0aec0; --text3: #5a6478;
+  --border: rgba(255,255,255,0.05); --glass: rgba(20,20,37,0.7);
+}
+html, body { height: 100%; overflow: hidden; background: var(--bg); }
+body { font-family: 'Inter', -apple-system, sans-serif; color: var(--text); }
+
+.deck { position: relative; width: 100%; height: 100%; }
+.slide {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px 64px 64px;
+  opacity: 0; transform: scale(0.97) translateX(40px);
+  transition: opacity 0.45s cubic-bezier(.4,0,.2,1), transform 0.45s cubic-bezier(.4,0,.2,1);
+  pointer-events: none; overflow-y: auto; overflow-x: hidden;
+}
+.slide.active { opacity: 1; transform: scale(1) translateX(0); pointer-events: auto; }
+.slide.prev { opacity: 0; transform: scale(0.97) translateX(-40px); }
+.slide-inner { max-width: 1140px; width: 100%; position: relative; z-index: 2; }
+.slide::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; opacity: 0.4; pointer-events: none;
+}
+.bg-glow-blue::before { background: radial-gradient(ellipse 80% 60% at 20% 20%, rgba(0,212,255,0.07), transparent), radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139,92,246,0.05), transparent); }
+.bg-glow-red::before { background: radial-gradient(ellipse 70% 60% at 70% 30%, rgba(239,68,68,0.06), transparent), radial-gradient(ellipse 50% 40% at 20% 70%, rgba(245,158,11,0.04), transparent); }
+.bg-glow-green::before { background: radial-gradient(ellipse 70% 60% at 50% 40%, rgba(16,185,129,0.06), transparent), radial-gradient(ellipse 50% 40% at 80% 80%, rgba(0,212,255,0.04), transparent); }
+.bg-glow-purple::before { background: radial-gradient(ellipse 80% 60% at 60% 30%, rgba(139,92,246,0.08), transparent), radial-gradient(ellipse 50% 40% at 20% 80%, rgba(236,72,153,0.04), transparent); }
+.bg-glow-center::before { background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,212,255,0.06), transparent), radial-gradient(ellipse 40% 30% at 50% 50%, rgba(139,92,246,0.05), transparent); }
+.slide::after {
+  content: ''; position: absolute; inset: 0; z-index: 1;
+  background-image: radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 32px 32px; pointer-events: none;
+}
+
+/* Bottom bar */
+.bottom-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  height: 48px; background: rgba(8,8,15,0.92); backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 24px; gap: 16px;
+}
+.slide-num { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text3); min-width: 50px; }
+.dots { display: flex; gap: 4px; align-items: center; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.1); cursor: pointer; transition: all 0.35s; }
+.dot.active { background: var(--accent); width: 24px; border-radius: 4px; box-shadow: 0 0 12px rgba(0,212,255,0.5); }
+.dot:hover:not(.active) { background: rgba(255,255,255,0.25); }
+.progress-wrap { flex: 1; height: 3px; background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; transition: width 0.4s ease; }
+.nav-keys { font-size: 0.6rem; color: var(--text3); white-space: nowrap; }
+.nav-keys kbd { background: var(--surface2); padding: 2px 7px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; border: 1px solid rgba(255,255,255,0.08); margin: 0 1px; }
+
+/* Typography */
+.tag { display: inline-flex; align-items: center; gap: 6px; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; padding: 5px 12px; border-radius: 100px; margin-bottom: 16px; }
+.tag-blue { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(0,212,255,0.15); }
+.tag-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.15); }
+.tag-green { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.15); }
+.tag-yellow { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(245,158,11,0.15); }
+.tag-purple { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(139,92,246,0.15); }
+h1 { font-size: clamp(2.2rem, 4.5vw, 3.5rem); font-weight: 900; line-height: 1.08; letter-spacing: -0.02em; }
+h2 { font-size: clamp(1.4rem, 3vw, 2.1rem); font-weight: 800; line-height: 1.12; letter-spacing: -0.015em; }
+.grad { background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 60%, #ec4899 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.big-statement { font-size: clamp(0.9rem, 1.5vw, 1.1rem); color: var(--text2); line-height: 1.8; margin-top: 12px; max-width: 740px; border-left: 3px solid var(--accent); padding-left: 18px; }
+.big-statement strong { color: var(--text); font-weight: 600; }
+
+/* Grids */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 20px; }
+.g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-top: 20px; }
+.split { display: flex; gap: 32px; align-items: flex-start; margin-top: 20px; }
+.half { flex: 1; }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; transition: all 0.3s; position: relative; overflow: hidden; }
+.card:hover { border-color: rgba(0,212,255,0.15); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.3); }
+.card .c-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; margin-bottom: 10px; }
+.c-blue { background: var(--accent-dim); }
+.c-green { background: var(--green-dim); }
+.c-yellow { background: var(--yellow-dim); }
+.c-red { background: var(--red-dim); }
+.c-purple { background: var(--purple-dim); }
+.card-accent { border-top: 2px solid var(--accent); }
+.card-accent-red { border-top: 2px solid var(--red); }
+.card-accent-green { border-top: 2px solid var(--green); }
+.card h3 { font-size: 0.88rem; font-weight: 700; margin-bottom: 5px; }
+.card p { font-size: 0.78rem; color: var(--text2); line-height: 1.65; }
+
+/* Image styles */
+.img-frame { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); position: relative; }
+.img-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.img-frame .img-label {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.85));
+  padding: 24px 14px 10px; font-size: 0.7rem; color: rgba(255,255,255,0.85);
+  font-weight: 600;
+}
+.img-compare { display: flex; gap: 12px; align-items: stretch; }
+.img-compare .img-side { flex: 1; }
+.img-compare .img-side .img-frame { height: 200px; }
+.img-compare .arrow-mid { display: flex; align-items: center; font-size: 1.5rem; color: var(--accent); flex-shrink: 0; }
+
+/* Gallery grid */
+.img-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+.img-gallery .img-frame { height: 160px; }
+
+/* Modes */
+.mode { background: var(--surface); border-radius: 14px; padding: 20px; border-left: 4px solid; transition: all 0.3s; }
+.mode:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.25); }
+.mode-full { border-left-color: var(--green); }
+.mode-mem { border-left-color: var(--yellow); }
+.mode-body { border-left-color: var(--accent2); }
+.mode .m-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.mode .m-icon { font-size: 1.3rem; }
+.mode .m-name { font-weight: 700; font-size: 0.9rem; }
+.mode .m-desc { font-size: 0.68rem; color: var(--text3); }
+.mode li { list-style: none; padding: 3px 0; font-size: 0.78rem; color: var(--text2); display: flex; align-items: center; gap: 7px; }
+.mode li::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+/* Pipeline */
+.pipe { display: flex; align-items: stretch; gap: 8px; margin-top: 20px; }
+.pipe-item { flex: 1; background: var(--surface); border-radius: 12px; padding: 16px 10px; text-align: center; border: 1px solid var(--border); position: relative; transition: all 0.3s; }
+.pipe-item:hover { border-color: rgba(0,212,255,0.2); transform: translateY(-2px); }
+.pipe-item .p-num { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; font-size: 0.6rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.pipe-item .p-icon { font-size: 1.3rem; margin: 4px 0 6px; }
+.pipe-item h4 { font-size: 0.72rem; font-weight: 700; }
+.pipe-item p { font-size: 0.62rem; color: var(--text3); margin-top: 3px; line-height: 1.5; }
+.pipe-arrow { display: flex; align-items: center; color: var(--text3); font-size: 0.9rem; flex-shrink: 0; opacity: 0.4; }
+
+/* States */
+.states { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 24px; flex-wrap: wrap; }
+.st { padding: 12px 18px; border-radius: 12px; text-align: center; min-width: 105px; transition: transform 0.3s; }
+.st:hover { transform: scale(1.05); }
+.st .st-i { font-size: 1.4rem; }
+.st .st-n { font-weight: 700; font-size: 0.78rem; margin-top: 3px; }
+.st .st-d { font-size: 0.6rem; opacity: 0.7; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+.st-g { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); color: #34d399; }
+.st-b { background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); color: #67e8f9; }
+.st-y { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); color: #fbbf24; }
+.st-r { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #f87171; }
+.st-p { background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25); color: #a78bfa; }
+.st-arrow { color: var(--text3); font-size: 1.2rem; opacity: 0.4; }
+
+/* Alerts */
+.alerts { display: flex; gap: 10px; margin-top: 20px; }
+.al { flex: 1; border-radius: 12px; padding: 14px; text-align: center; transition: transform 0.3s; }
+.al:hover { transform: translateY(-2px); }
+.al .al-i { font-size: 1.5rem; }
+.al .al-n { font-weight: 700; font-size: 0.75rem; margin-top: 4px; }
+.al .al-d { font-size: 0.62rem; opacity: 0.65; margin-top: 2px; }
+
+/* Table */
+.tbl { width: 100%; border-collapse: collapse; margin-top: 20px; border-radius: 12px; overflow: hidden; }
+.tbl th, .tbl td { padding: 10px 14px; text-align: left; font-size: 0.78rem; border-bottom: 1px solid var(--border); }
+.tbl thead th { background: var(--surface2); font-weight: 700; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); }
+.tbl thead th:last-child { color: var(--accent); }
+.tbl tbody tr:hover { background: rgba(0,212,255,0.02); }
+.tbl .y { color: var(--green); font-weight: 600; }
+.tbl .n { color: var(--red); opacity: 0.5; }
+
+.callout { background: linear-gradient(135deg, rgba(0,212,255,0.04), rgba(139,92,246,0.04)); border: 1px solid rgba(0,212,255,0.1); border-radius: 12px; padding: 16px 20px; margin-top: 16px; }
+.callout p { font-size: 0.8rem; color: var(--text2); line-height: 1.7; }
+.callout strong { color: var(--text); }
+
+.nums { display: flex; gap: 32px; justify-content: center; margin-top: 28px; flex-wrap: wrap; }
+.num-item { text-align: center; }
+.num-item .nv { font-size: clamp(1.8rem, 3.5vw, 2.8rem); font-weight: 900; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.num-item .nl { font-size: 0.62rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-top: 3px; }
+
+.hero-center { text-align: center; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-dim); border: 1px solid rgba(0,212,255,0.12); padding: 6px 16px; border-radius: 100px; font-size: 0.65rem; color: var(--accent); font-weight: 600; margin-bottom: 20px; }
+.pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pls 2s infinite; }
+@keyframes pls { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+.checks li { list-style: none; padding: 6px 0; font-size: 0.82rem; display: flex; align-items: flex-start; gap: 8px; color: var(--text2); line-height: 1.6; }
+.checks .ck { color: var(--green); font-weight: 700; flex-shrink: 0; }
+
+@media (max-width: 900px) {
+  .slide { padding: 28px 18px 56px; }
+  .g2,.g3,.g4 { grid-template-columns: 1fr; }
+  .pipe { flex-direction: column; }
+  .pipe-arrow { transform: rotate(90deg); justify-content: center; }
+  .states { flex-direction: column; }
+  .st-arrow { transform: rotate(90deg); }
+  .alerts { flex-direction: column; }
+  .split { flex-direction: column; gap: 16px; }
+  .nums { gap: 16px; }
+  .img-compare { flex-direction: column; }
+  .img-gallery { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- ══ 0 · KAPAK ══ -->
+<div class="slide active bg-glow-center" data-i="0">
+<div class="slide-inner hero-center">
+  <div class="hero-badge"><span class="pulse"></span> Yapay Zeka Destekli Guvenlik Cozumu</div>
+  <h1 style="margin-bottom:8px"><span class="grad">SleepGuard</span></h1>
+  <h2 style="font-weight:400;font-size:1.1rem;color:var(--text2)">Uyku ve Gorev Terk Tespit Sistemi</h2>
+  <div class="big-statement" style="border:none;text-align:center;padding:0;margin:20px auto 0;max-width:680px;">
+    Guvenlik gorevlilerinin uyuklama, uyuma ve gorev alanini terk etme durumlarini<br>
+    <strong>gercek zamanli tespit eden</strong> akilli gozlem sistemi.
+  </div>
+  <div class="nums" style="margin-top:36px">
+    <div class="num-item"><div class="nv">15+</div><div class="nl">Analiz Parametresi</div></div>
+    <div class="num-item"><div class="nv">3sn</div><div class="nl">Tepki Suresi</div></div>
+    <div class="num-item"><div class="nv">5</div><div class="nl">Esanli Kisi</div></div>
+    <div class="num-item"><div class="nv">7/24</div><div class="nl">Kesintisiz Calisma</div></div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 1 · PROBLEM ══ -->
+<div class="slide bg-glow-red" data-i="1">
+<div class="slide-inner">
+  <div class="tag tag-red">Musteri Ihtiyaci</div>
+  <h2>Mevcut Sistemler Neden Yetersiz?</h2>
+  <div class="big-statement">
+    Musterimiz daha once bircok uyku tespit sistemi denemis. <strong>Hepsi ayni sorunla basarisiz olmus:</strong>
+    gercek calisma kosullarinda calismiyor. Hepsi ideal kosullar istiyor — sabit otur, duz bak, isik iyi olsun.
+  </div>
+  <div class="g2">
+    <div class="card card-accent-red"><div class="c-icon c-red">🪑</div><h3>"Sabit Dur, Kameraya Bak"</h3><p>Diger sistemler kisinin tam karsida, hareketsiz oturmasini istiyor. Ama gercekte guvenlikci hareket eder, farkli koltuklara oturur.</p></div>
+    <div class="card card-accent-red"><div class="c-icon c-red">🌙</div><h3>"Isik Azalinca Duruyor"</h3><p>Gece nobetlerinde isik azalinca sistem goruntuyu isleyemiyor. Ama uyuklama en cok gece vardiyalarinda oluyor.</p></div>
+    <div class="card card-accent-red"><div class="c-icon c-red">📏</div><h3>"Sadece 1 Metreden Calisiyor"</h3><p>Gorevli her zaman masasinda degil. Odanin diger ucundaki koltuktaki oturuyor olabilir.</p></div>
+    <div class="card card-accent-red"><div class="c-icon c-red">🔔</div><h3>"Yanlis Alarm veya Hic Alarm Yok"</h3><p>Goz kirpsa alarm caliyor ama gercek uyuklamada sessiz kaliyor. Hassasiyet ayari yok.</p></div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 2 · GERCEK GORUNTU — CALISMA KANITI ══ -->
+<div class="slide bg-glow-blue" data-i="2">
+<div class="slide-inner">
+  <div class="tag tag-blue">Gercek Calisma Goruntuleri</div>
+  <h2>Sistem <span class="grad">Her Durumda</span> Algilama Yapar</h2>
+  <div class="big-statement">
+    Asagidaki gorseller sistemin <strong>gercek ortamda cektigi ve islettigi</strong> goruntulerdur.
+    Yesil noktalar sistemin algiladigi vucut ve yuz noktalarini gosterir.
+    Farkli mesafeler, farkli pozisyonlar, farkli isik kosullari — <strong>hepsinde tespit calisiyor.</strong>
+  </div>
+  <div class="img-gallery">
+    <div class="img-frame"><img src="../data_collection/s_0030.jpg" alt="Yakin mesafe yuz tespiti"><div class="img-label">🎯 Yakin Mesafe — Yuz + Goz Takibi</div></div>
+    <div class="img-frame"><img src="../data_collection/s_0840.jpg" alt="Bas arkaya dusmus"><div class="img-label">😪 Bas Arkaya Dusmus — Uyuklama Tespiti</div></div>
+    <div class="img-frame"><img src="../data_collection/s_0300.jpg" alt="Coklu kisi"><div class="img-label">👥 Birden Fazla Kisi Algilama</div></div>
+    <div class="img-frame"><img src="../data_collection/s_0450.jpg" alt="Yana yatmis"><div class="img-label">💤 Yana Yatmis — Uyku Pozisyonu</div></div>
+    <div class="img-frame"><img src="../data_collection/s_1110.jpg" alt="Uzak mesafe"><div class="img-label">📏 Uzak Mesafe — Vucut Iskeleti Tespiti</div></div>
+    <div class="img-frame"><img src="../data_collection/s_0150.jpg" alt="Bas dusmus"><div class="img-label">⬇️ Bas One Dusmus — Iskelet Analizi</div></div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 3 · ISIK KARSILASTIRMA ══ -->
+<div class="slide bg-glow-purple" data-i="3">
+<div class="slide-inner">
+  <div class="tag tag-yellow">Dusuk Isik Cozumu</div>
+  <h2>Gece Nobetlerinde de <span class="grad">Goruntuyu Isler</span></h2>
+  <div class="big-statement">
+    Guvenlik nobetleri cogunlukla geceleri tutuluyor ve ortam isigi minimum oluyor.
+    Diger sistemler bu durumda tamamen devre disi kaliyor.
+    <strong>SleepGuard, goruntuyu otomatik olarak iyilestirerek karanlikta bile analiz yapabiliyor.</strong>
+  </div>
+  <div class="img-compare" style="margin-top:24px">
+    <div class="img-side">
+      <div class="img-frame" style="height:240px"><img src="../data_collection/light_check.jpg" alt="Dusuk isik orijinal"><div class="img-label">❌ Orijinal Goruntu — Dusuk Isik</div></div>
+      <p style="text-align:center;font-size:0.72rem;color:var(--text3);margin-top:8px">Standart kameranin ham goruntusu — karanlik, detaylar kayip</p>
+    </div>
+    <div class="arrow-mid">→</div>
+    <div class="img-side">
+      <div class="img-frame" style="height:240px"><img src="../data_collection/light_enhanced.jpg" alt="Isik iyilestirmesi"><div class="img-label">✅ SleepGuard Filtresi — Iyilestirilmis</div></div>
+      <p style="text-align:center;font-size:0.72rem;color:var(--text3);margin-top:8px">CLAHE + kontrast iyilestirme ile detaylar ortaya cikarildi</p>
+    </div>
+  </div>
+  <div class="callout" style="margin-top:20px">
+    <p><strong>Nasil calisiyor?</strong> Sistem her kareyi analiz eder, isik seviyesi dusukse otomatik olarak goruntu iyilestirme filtresi uygular. Bu filtre insan gozune gore degil, yapay zekanin algilamasina gore optimize edilmistir.</p>
+  </div>
+</div>
+</div>
+
+<!-- ══ 4 · COZUM GENEL BAKIS ══ -->
+<div class="slide bg-glow-blue" data-i="4">
+<div class="slide-inner">
+  <div class="tag tag-blue">Cozumumuz</div>
+  <h2>Tek Kamera ile <span class="grad">Tam Koruma</span></h2>
+  <div class="big-statement">
+    SleepGuard, <strong>standart bir USB kamera</strong> ile calisan, insanin tum vucut dilini analiz eden,
+    hicbir kosul dayatmayan bir uyku tespit sistemidir. Kisi nereye oturursa otursun — <strong>sistem her durumda tespit yapar.</strong>
+  </div>
+  <div class="g3">
+    <div class="card card-accent"><div class="c-icon c-blue">👁️</div><h3>Goz Takibi</h3><p>Goz kapagi acikligini saniyede 30 kez olcer. Kirpisma ile gercek kapanmayi ayirt eder.</p></div>
+    <div class="card card-accent"><div class="c-icon c-blue">🧠</div><h3>Bas Pozisyonu</h3><p>Basin 3 boyutlu acisini hesaplar — one egilme, yana yatma. Bas dusmeye baslayinca sinyal verir.</p></div>
+    <div class="card card-accent"><div class="c-icon c-blue">🏋️</div><h3>Vucut Analizi</h3><p>33 noktali vucut iskeleti uzerinden oturma pozisyonunu siniflar. Uzak mesafede bile calisir.</p></div>
+    <div class="card card-accent"><div class="c-icon c-blue">📊</div><h3>Hareket Analizi</h3><p>Vucuttaki en kucuk hareketi bile olcer. Uzun sureli hareketsizlik uykunun habercisidir.</p></div>
+    <div class="card card-accent"><div class="c-icon c-blue">💾</div><h3>Sinyal Hafizasi</h3><p>Yuz gorunmez oldugunda son veriler 60 saniyeye kadar hafizada tutulur.</p></div>
+    <div class="card card-accent"><div class="c-icon c-blue">🚪</div><h3>Alan Terk Tespiti</h3><p>3 dakika boyunca kimse gorulmezse otomatik uyari verilir.</p></div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 5 · NASIL CALISIYOR ══ -->
+<div class="slide bg-glow-purple" data-i="5">
+<div class="slide-inner">
+  <div class="tag tag-purple">Teknik Altyapi</div>
+  <h2>Goruntuden Karara: <span class="grad">6 Adim</span></h2>
+  <div class="big-statement">
+    Her kamera karesinde asagidaki 6 adim <strong>saniyede 30 kez</strong> tekrarlanir.
+    Sistem hicbir zaman tek bir sinyale guvenip karar vermez — tum olcumler birlikte degerlendirilir.
+  </div>
+  <div class="pipe">
+    <div class="pipe-item"><div class="p-num">1</div><div class="p-icon">📷</div><h4>Goruntu Al</h4><p>Kameradan kare al, karanliksa iyilestir</p></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-item"><div class="p-num">2</div><div class="p-icon">🦴</div><h4>Insan Bul</h4><p>Insanlari tespit et, 33 noktali iskelet cikar</p></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-item"><div class="p-num">3</div><div class="p-icon">👁️</div><h4>Yuz Analizi</h4><p>Yakinsa 478 noktali yuz haritasi cikar</p></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-item"><div class="p-num">4</div><div class="p-icon">🏋️</div><h4>Vucut Analizi</h4><p>Pozisyon sinifla, hareket olc</p></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-item"><div class="p-num">5</div><div class="p-icon">⚖️</div><h4>Birlestir</h4><p>Tum sinyalleri birlestir, 0-1 puan uret</p></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-item"><div class="p-num">6</div><div class="p-icon">🔔</div><h4>Karar</h4><p>Durumu belirle, gerekirse alarm ver</p></div>
+  </div>
+  <div class="callout">
+    <p><strong>Neden 6 adim?</strong> Tek bir olcum yanlis sonuc verebilir. Ama goz kapali + bas dusmus + hareketsiz + bozuk oturma hep bir arada ise — bu kesinlikle uyku demektir.</p>
+  </div>
+</div>
+</div>
+
+<!-- ══ 6 · 3 MOD ══ -->
+<div class="slide bg-glow-green" data-i="6">
+<div class="slide-inner">
+  <div class="tag tag-green">Uyum Yetenegi</div>
+  <h2>Her Kosulda Calisan <span class="grad">3 Akilli Mod</span></h2>
+  <div class="big-statement">
+    Guvenlikci her zaman kameranin tam karsisinda oturmuyor. Bazen 2 metre otede, bazen yan donuk.
+    <strong>Sistem buna gore otomatik olarak en uygun analiz moduna gecer.</strong>
+  </div>
+  <div class="split">
+    <div class="half">
+      <div class="g3" style="margin-top:0">
+        <div class="mode mode-full"><div class="m-top"><span class="m-icon">🎯</span><div><div class="m-name">Tam Analiz</div><div class="m-desc">0-1.5m · Yuz gorunuyor</div></div></div><ul><li>Goz kapagi olcumu</li><li>3B bas acisi takibi</li><li>Vucut + hareket</li><li>En yuksek dogruluk</li></ul></div>
+        <div class="mode mode-mem"><div class="m-top"><span class="m-icon">💾</span><div><div class="m-name">Hafiza Modu</div><div class="m-desc">Yuz yeni kaybolmus</div></div></div><ul><li>Son veriler 60sn hafizada</li><li>Yumusak gecis</li><li>Yan donme destegi</li><li>Kesintisiz analiz</li></ul></div>
+        <div class="mode mode-body"><div class="m-top"><span class="m-icon">🏃</span><div><div class="m-name">Vucut Modu</div><div class="m-desc">1.5-4m · Uzak mesafe</div></div></div><ul><li>Sadece iskelet tespiti</li><li>Pozisyon degerlendirme</li><li>Hareketsizlik takibi</li><li>Farkli koltuk destegi</li></ul></div>
+      </div>
+    </div>
+    <div class="half" style="max-width:320px">
+      <div class="img-frame" style="height:180px;margin-bottom:10px"><img src="../data_collection/s_0030.jpg" alt="Yakin"><div class="img-label">🎯 Yakin — Tam Analiz</div></div>
+      <div class="img-frame" style="height:180px"><img src="../data_collection/s_1110.jpg" alt="Uzak"><div class="img-label">🏃 Uzak — Vucut Modu</div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 7 · DURUM SISTEMI ══ -->
+<div class="slide bg-glow-blue" data-i="7">
+<div class="slide-inner">
+  <div class="tag tag-blue">Durum Takibi</div>
+  <h2>5 Kademeli <span class="grad">Akilli Durum Sistemi</span></h2>
+  <div class="big-statement">
+    Sistem hesapladigi uyku puanina gore <strong>5 durumdan birinde bulunur.</strong>
+    Gecis icin puanin belirli sure esik degerinde kalmasi gerekir.
+    <strong>Anlik olaylar alarm tetiklemez — sadece gercek uyku tespit edilir.</strong>
+  </div>
+  <div class="states">
+    <div class="st st-g"><div class="st-i">✅</div><div class="st-n">AKTIF</div><div class="st-d">&lt; 0.15</div></div>
+    <div class="st-arrow">→</div>
+    <div class="st st-b"><div class="st-i">⏸️</div><div class="st-n">HAREKETSIZ</div><div class="st-d">5sn bekle</div></div>
+    <div class="st-arrow">→</div>
+    <div class="st st-y"><div class="st-i">😪</div><div class="st-n">UYUKLAMA</div><div class="st-d">2sn bekle</div></div>
+    <div class="st-arrow">→</div>
+    <div class="st st-r"><div class="st-i">😴</div><div class="st-n">UYUYOR</div><div class="st-d">3sn bekle</div></div>
+  </div>
+  <div style="text-align:center;margin-top:12px">
+    <div class="st st-p" style="display:inline-block"><div class="st-i">🚪</div><div class="st-n">ALAN TERK</div><div class="st-d">3dk kimse yok</div></div>
+  </div>
+  <div class="split" style="margin-top:20px">
+    <div class="half">
+      <div class="callout">
+        <p><strong>Ornek:</strong> Biri gozlerini 1sn kapatti — alarm calmaz. Ama 3sn boyunca gozler kapali + bas dusmus + hareketsiz ise → UYUYOR.</p>
+      </div>
+    </div>
+    <div class="half" style="max-width:260px">
+      <div class="img-frame" style="height:160px"><img src="../data_collection/s_0450.jpg" alt="Uyku pozisyonu"><div class="img-label">😴 Gercek Uyku Tespiti</div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 8 · UYARI SISTEMI ══ -->
+<div class="slide bg-glow-red" data-i="8">
+<div class="slide-inner">
+  <div class="tag tag-yellow">Uyari Mekanizmasi</div>
+  <h2>Kademeli Uyari ve Alarm</h2>
+  <div class="big-statement">
+    Durum kotulesikce uyarilar da <strong>siddetini arttirir.</strong>
+    Her seviyenin kendi tekrar araligi vardir.
+    <strong>15 saniyeden fazla uyunursa sistem otomatik olarak kritik seviyeye yukseltir.</strong>
+  </div>
+  <div class="alerts">
+    <div class="al" style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.12)"><div class="al-i">ℹ️</div><div class="al-n">Bilgi</div><div class="al-d">Hareketsiz durum<br>30sn arayla</div></div>
+    <div class="al" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15)"><div class="al-i">⚠️</div><div class="al-n">Uyari</div><div class="al-d">Uyuklama basladi<br>5sn arayla</div></div>
+    <div class="al" style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.12)"><div class="al-i">🔔</div><div class="al-n">Alarm</div><div class="al-d">Uyku tespiti<br>3sn arayla</div></div>
+    <div class="al" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25)"><div class="al-i">🚨</div><div class="al-n">Kritik</div><div class="al-d">15+ saniye uyku<br>2sn arayla</div></div>
+    <div class="al" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.12)"><div class="al-i">🚪</div><div class="al-n">Alan Terk</div><div class="al-d">3dk kimse yok<br>10sn arayla</div></div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 9 · KARSILASTIRMA ══ -->
+<div class="slide bg-glow-blue" data-i="9">
+<div class="slide-inner">
+  <div class="tag tag-blue">Rakip Analizi</div>
+  <h2>Piyasa ile Karsilastirma</h2>
+  <div class="big-statement">
+    <strong>Kritik fark:</strong> diger sistemler ideal kosullar isterken, biz gercek kosullarda calisiyoruz.
+  </div>
+  <table class="tbl">
+    <thead><tr><th>Ozellik</th><th>Diger Sistemler</th><th>SleepGuard</th></tr></thead>
+    <tbody>
+      <tr><td>Kameraya bakmak zorunlu mu?</td><td class="n">Evet, tam karsi</td><td class="y">Hayir, her acida</td></tr>
+      <tr><td>Uzak mesafe (2-4m)</td><td class="n">Desteklemiyor</td><td class="y">Vucut analizi ile</td></tr>
+      <tr><td>Yuz gorunmezse?</td><td class="n">Analiz durur</td><td class="y">Hafiza + vucut modu</td></tr>
+      <tr><td>Dusuk isik / gece</td><td class="n">Calismiyor</td><td class="y">Otomatik iyilestirme</td></tr>
+      <tr><td>Yan donuk kisi</td><td class="n">Algilanmiyor</td><td class="y">Iskelet ile algilanir</td></tr>
+      <tr><td>Kalibrasyon</td><td class="n">Her seferinde manuel</td><td class="y">Otomatik arka planda</td></tr>
+      <tr><td>Alan terk tespiti</td><td class="n">Yok</td><td class="y">3dk sonra uyari</td></tr>
+      <tr><td>Birden fazla kisi</td><td class="n">Sadece 1 kisi</td><td class="y">5 kisiye kadar</td></tr>
+      <tr><td>Sahte alarm onleme</td><td class="n">Basit esik</td><td class="y">Sureli gecis sistemi</td></tr>
+      <tr><td>Donanim</td><td class="n">Ozel donanim</td><td class="y">USB kamera yeterli</td></tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- ══ 10 · KURULUM ══ -->
+<div class="slide bg-glow-green" data-i="10">
+<div class="slide-inner">
+  <div class="tag tag-green">Kullanim Kolayligi</div>
+  <h2>Tak ve Calistir</h2>
+  <div class="big-statement">
+    Sistem <strong>dakikalar icinde kurulur.</strong> Ozel donanim gerekmez. Internet gerekmez.
+    <strong>Goruntular hicbir yere gonderilmez</strong> — tamamen yerel islem.
+  </div>
+  <div class="split">
+    <div class="half">
+      <h3 style="font-size:0.95rem;margin-bottom:12px">Kurulum Adimlari</h3>
+      <ul class="checks">
+        <li><span class="ck">✓</span> USB veya IP kamerayi bagla</li>
+        <li><span class="ck">✓</span> Yazilimi calistir — hemen baslar</li>
+        <li><span class="ck">✓</span> Kalibrasyon otomatik yapilir</li>
+        <li><span class="ck">✓</span> Bolge tanimlama opsiyonel</li>
+        <li><span class="ck">✓</span> 7/24 kesintisiz calisma</li>
+      </ul>
+      <div class="callout" style="margin-top:12px"><p><strong>Tamamen cevrimdisi.</strong> Veriler disari cikmaz. Mahremiyet korunur.</p></div>
+    </div>
+    <div class="half">
+      <div class="card" style="margin-bottom:10px"><h3>Minimum Donanim</h3><p>USB kamera (640x480) · Intel i5 · 4 GB RAM · Windows/Linux</p></div>
+      <div class="card card-accent-green"><h3>Onerilen Donanim</h3><p>Full HD (1080p) · Intel i7 · 8 GB RAM · IR gece gorush kamera</p></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 11 · NEDEN BIZ ══ -->
+<div class="slide bg-glow-purple" data-i="11">
+<div class="slide-inner">
+  <div class="tag tag-purple">Neden SleepGuard?</div>
+  <h2>Diger Sistemlerin Yapamadigi, <span class="grad">Bizim Yaptigimiz</span></h2>
+  <div class="big-statement">
+    Tek cumleyle: <strong>hicbir kosul dayatmadan, her ortamda, her mesafede, her acida calisan tek sistem.</strong>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="c-icon c-blue">🔄</div><h3>Kosul Dayatmiyor</h3><p>Kisi yan donsun, egsin, kalksin, otursun — sistem her durumda calisir.</p></div>
+    <div class="card"><div class="c-icon c-purple">🧠</div><h3>Tek Sinyale Guvenmiyor</h3><p>Goz, bas, vucut, hareket — hepsini birlikte degerlendiriyor.</p></div>
+    <div class="card"><div class="c-icon c-green">⚡</div><h3>Aninda Calisiyor</h3><p>Kalibrasyon beklemeden varsayilan degerlerle hemen baslar.</p></div>
+    <div class="card"><div class="c-icon c-yellow">🛡️</div><h3>Guvenilir Alarm</h3><p>Ne gereksiz alarm verir, ne gercek uyumayi kacir.</p></div>
+  </div>
+  <div class="nums" style="margin-top:24px">
+    <div class="num-item"><div class="nv">0.5-4m</div><div class="nl">Calisma Mesafesi</div></div>
+    <div class="num-item"><div class="nv">%100</div><div class="nl">Cevrimdisi</div></div>
+    <div class="num-item"><div class="nv">0</div><div class="nl">Ozel Donanim</div></div>
+    <div class="num-item"><div class="nv">30fps</div><div class="nl">Gercek Zamanli</div></div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 12 · KAPANI ══ -->
+<div class="slide bg-glow-center" data-i="12">
+<div class="slide-inner hero-center">
+  <h1 style="font-size:clamp(2.2rem,4.5vw,3.5rem)"><span class="grad">Tesekkurler</span></h1>
+  <p style="color:var(--text2);font-size:1rem;margin-top:10px">Sorulariniz icin haziriz.</p>
+  <div style="margin-top:36px">
+    <div class="hero-badge" style="font-size:0.8rem;padding:8px 20px"><span class="pulse"></span> SleepGuard v2.0 — Yapay Zeka Destekli Uyku Tespit Sistemi</div>
+  </div>
+  <div class="nums" style="margin-top:32px">
+    <div class="num-item"><div class="nv">15+</div><div class="nl">Parametre</div></div>
+    <div class="num-item"><div class="nv">3</div><div class="nl">Tespit Modu</div></div>
+    <div class="num-item"><div class="nv">5</div><div class="nl">Durum Kademesi</div></div>
+    <div class="num-item"><div class="nv">5</div><div class="nl">Uyari Seviyesi</div></div>
+  </div>
+  <p style="margin-top:32px;color:var(--text3);font-size:0.75rem">2026</p>
+</div>
+</div>
+
+</div>
+
+<!-- Bottom bar -->
+<div class="bottom-bar">
+  <div class="slide-num" id="snum">1 / 13</div>
+  <div class="dots" id="dots"></div>
+  <div class="progress-wrap"><div class="progress-bar" id="pbar"></div></div>
+  <div class="nav-keys"><kbd>←</kbd> <kbd>→</kbd> <kbd>Space</kbd></div>
+</div>
+
+<script>
+const slides=document.querySelectorAll('.slide'),N=slides.length;
+let cur=0;
+const snum=document.getElementById('snum'),pbar=document.getElementById('pbar'),dotsEl=document.getElementById('dots');
+for(let i=0;i<N;i++){const d=document.createElement('div');d.className='dot';d.onclick=()=>go(i);dotsEl.appendChild(d)}
+const dots=dotsEl.querySelectorAll('.dot');
+slides.forEach(s=>{s.dataset.bg=[...s.classList].find(c=>c.startsWith('bg-'))||''});
+function go(n){
+  if(n<0||n>=N||n===cur)return;
+  slides.forEach((s,i)=>{
+    const bg=s.dataset.bg;
+    if(i===n)s.className='slide '+(bg||'')+' active';
+    else if(i<n)s.className='slide '+(bg||'')+' prev';
+    else s.className='slide '+(bg||'');
+  });
+  cur=n;upd();
+}
+function upd(){
+  snum.textContent=`${cur+1} / ${N}`;
+  pbar.style.width=`${(cur/(N-1))*100}%`;
+  dots.forEach((d,i)=>d.classList.toggle('active',i===cur));
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(cur+1)}
+  if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();go(cur-1)}
+  if(e.key==='Home'){e.preventDefault();go(0)}
+  if(e.key==='End'){e.preventDefault();go(N-1)}
+});
+let tx=0;
+document.addEventListener('touchstart',e=>tx=e.touches[0].clientX);
+document.addEventListener('touchend',e=>{const d=tx-e.changedTouches[0].clientX;if(Math.abs(d)>50)d>0?go(cur+1):go(cur-1)});
+let wl=false;
+document.addEventListener('wheel',e=>{if(wl)return;wl=true;e.deltaY>0?go(cur+1):go(cur-1);setTimeout(()=>wl=false,500)});
+upd();
+</script>
+</body>
+</html>
